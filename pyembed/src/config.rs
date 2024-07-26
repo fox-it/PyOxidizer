@@ -472,17 +472,21 @@ impl<'a> OxidizedPythonInterpreterConfig<'a> {
         };
 
         let exe = if let Some(exe) = self.exe {
-            exe
+            // We always canonicalize the current executable because we use path
+            // comparisons in the path hooks importer to assess whether a given sys.path
+            // entry is this executable.
+            dunce::canonicalize(exe)
+                .map_err(|_| NewInterpreterError::Simple("could not obtain current executable path"))?
         } else {
-            std::env::current_exe()
-                .map_err(|_| NewInterpreterError::Simple("could not obtain current executable"))?
+            if let Some(argv) = &argv {
+                argv
+                    .get(0)
+                    .ok_or_else(|| NewInterpreterError::Simple("argv is empty"))?
+                    .into()
+            } else {
+                "".into()
+            }
         };
-
-        // We always canonicalize the current executable because we use path
-        // comparisons in the path hooks importer to assess whether a given sys.path
-        // entry is this executable.
-        let exe = dunce::canonicalize(exe)
-            .map_err(|_| NewInterpreterError::Simple("could not obtain current executable path"))?;
 
         let origin = if let Some(origin) = self.origin {
             origin
